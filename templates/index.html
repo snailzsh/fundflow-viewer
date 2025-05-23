@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>行业板块资金净流入排行榜（单位：亿元）</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        /* 基础样式 */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f8f9fa;
+            margin: 0;
+            padding: 0;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #333;
+            font-size: 1.8rem;
+        }
+        
+        /* 表格样式 */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            background: white;
+        }
+        
+        .data-table th, .data-table td {
+            padding: 10px;
+            text-align: center;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .data-table th {
+            background-color: #f5f5f5;
+            font-weight: bold;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        
+        .data-table tbody tr:hover {
+            background-color: #f0f7ff;
+        }
+        
+        /* 标签页样式 */
+        .tabs {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .tab-container {
+            display: flex;
+        }
+        
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            border-bottom: none;
+            border-radius: 5px 5px 0 0;
+            margin-right: 5px;
+            background-color: #f0f0f0;
+            transition: all 0.3s;
+        }
+        
+        .tab:hover {
+            background-color: #e0e0e0;
+        }
+        
+        .tab.active {
+            background-color: #fff;
+            border-color: #ddd;
+            border-bottom-color: #fff;
+            font-weight: bold;
+            margin-bottom: -1px;
+        }
+        
+        .tab-content {
+            display: none;
+            overflow-x: auto;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        /* 刷新按钮样式 */
+        .refresh-container {
+            display: flex;
+            align-items: center;
+        }
+        
+        #refresh-btn {
+            padding: 8px 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        #refresh-btn:hover {
+            background-color: #45a049;
+        }
+        
+        #refresh-btn:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        
+        #last-update {
+            margin-left: 10px;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        /* 数据颜色 */
+        .positive {
+            color: #f44336;
+        }
+        
+        .negative {
+            color: #4CAF50;
+        }
+        
+        .no-data {
+            text-align: center;
+            padding: 30px;
+            color: #999;
+        }
+        
+        /* 加载动画 */
+        .loading {
+            text-align: center;
+            padding: 30px;
+        }
+        
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            h1 {
+                font-size: 1.5rem;
+            }
+            
+            .tab {
+                padding: 8px 12px;
+                font-size: 14px;
+            }
+            
+            .data-table th, .data-table td {
+                padding: 6px 4px;
+                font-size: 12px;
+            }
+            
+            #refresh-btn {
+                padding: 6px 12px;
+                font-size: 12px;
+            }
+        }
+        
+        /* 排序图标 */
+        .sortable {
+            cursor: pointer;
+            position: relative;
+        }
+        
+        .sortable:after {
+            content: '↕';
+            position: absolute;
+            right: 5px;
+            color: #999;
+        }
+        
+        .sortable.asc:after {
+            content: '↑';
+            color: #333;
+        }
+        
+        .sortable.desc:after {
+            content: '↓';
+            color: #333;
+        }
+        
+        /* 搜索框样式 */
+        .search-container {
+            margin-bottom: 15px;
+        }
+        
+        .search-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 14px;
+        }
+        
+        /* 控制面板 */
+        .control-panel {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .auto-refresh {
+            display: flex;
+            align-items: center;
+        }
+        
+        .auto-refresh label {
+            margin-right: 10px;
+            font-size: 14px;
+        }
+        
+        .auto-refresh select {
+            padding: 4px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .export-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .export-btn {
+            padding: 8px 16px;
+            background-color: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .export-btn:hover {
+            background-color: #0b7dda;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>行业板块资金净流入排行榜（单位：亿元）</h1>
+        
+        <div class="tabs">
+            <div class="tab-container">
+                <div class="tab active" data-tab="today">今日排行（前20）</div>
+                <div class="tab" data-tab="5day">5日排行（前20）</div>
+                <div class="tab" data-tab="10day">10日排行（前20）</div>
+            </div>
+            
+            <div class="refresh-container">
+                <button id="refresh-btn">刷新数据</button>
+                <span id="last-update"></span>
+            </div>
+        </div>
+        
+        <div class="control-panel">
+            <div class="search-container">
+                <input type="text" class="search-input" placeholder="搜索行业板块..." id="search-input">
+            </div>
+            
+            <div class="auto-refresh">
+                <label for="auto-refresh-interval">自动刷新：</label>
+                <select id="auto-refresh-interval">
+                    <option value="0">关闭</option>
+                    <option value="30">30秒</option>
+                    <option value="60">1分钟</option>
+                    <option value="300">5分钟</option>
+                    <option value="600">10分钟</option>
+                </select>
+            </div>
+            
+            <div class="export-buttons">
+                <button id="export-excel" class="export-btn">导出Excel</button>
+                <button id="export-csv" class="export-btn">导出CSV</button>
+            </div>
+        </div>
+        
+        <div class="tab-content active" id="today-content">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th rowspan="2">序号</th>
+                        <th rowspan="2">行业板块</th>
+                        <th rowspan="2" class="sortable" data-sort="涨跌幅">涨跌幅(%)</th>
+                        <th colspan="2">主力净流入</th>
+                        <th colspan="2">超大单净流入</th>
+                        <th colspan="2">大单净流入</th>
+                        <th colspan="2">中单净流入</th>
+                        <th colspan="2">小单净流入</th>
+                        <th rowspan="2">概念资金流</th>
+                        <th rowspan="2">主力净流入最大股</th>
+                    </tr>
+                    <tr>
+                        <th class="sortable" data-sort="主力净流入">净额</th>
+                        <th class="sortable" data-sort="主力净流入占比">净占比</th>
+                        <th class="sortable" data-sort="超大单净流入">净额</th>
+                        <th class="sortable" data-sort="超大单净流入占比">净占比</th>
+                        <th class="sortable" data-sort="大单净流入">净额</th>
+                        <th class="sortable" data-sort="大单净流入占比">净占比</th>
+                        <th class="sortable" data-sort="中单净流入">净额</th>
+                        <th class="sortable" data-sort="中单净流入占比">净占比</th>
+                        <th class="sortable" data-sort="小单净流入">净额</th>
+                        <th class="sortable" data-sort="小单净流入占比">净占比</th>
+                    </tr>
+                </thead>
+                <tbody id="today-data">
+                    <tr class="loading">
+                        <td colspan="15">
+                            <div class="loading-spinner"></div>
+                            <p>加载中...</p>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="tab-content" id="5day-content">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th rowspan="2">序号</th>
+                        <th rowspan="2">行业板块</th>
+                        <th rowspan="2" class="sortable" data-sort="涨跌幅">涨跌幅(%)</th>
+                        <th colspan="2">主力净流入</th>
+                        <th colspan="2">超大单净流入</th>
+                        <th colspan="2">大单净流入</th>
+                        <th colspan="2">中单净流入</th>
+                        <th colspan="2">小单净流入</th>
+                        <th rowspan="2">概念资金流</th>
+                        <th rowspan="2">主力净流入最大股</th>
+                    </tr>
+                    <tr>
+                        <th class="sortable" data-sort="主力净流入">净额</th>
+                        <th class="sortable" data-sort="主力净流入占比">净占比</th>
+                        <th class="sortable" data-sort="超大单净流入">净额</th>
+                        <th class="sortable" data-sort="超大单净流入占比">净占比</th>
+                        <th class="sortable" data-sort="大单净流入">净额</th>
+                        <th class="sortable" data-sort="大单净流入占比">净占比</th>
+                        <th class="sortable" data-sort="中单净流入">净额</th>
+                        <th class="sortable" data-sort="中单净流入占比">净占比</th>
+                        <th class="sortable" data-sort="小单净流入">净额</th>
+                        <th class="sortable" data-sort="小单净流入占比">净占比</th>
+                    </tr>
+                </thead>
+                <tbody id="5day-data">
+                    <tr class="loading">
+                        <td colspan="15">
+                            <div class="loading-spinner"></div>
+                            <p>加载中...</p>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="tab-content" id="10day-content">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th rowspan="2">序号</th>
+                        <th rowspan="2">行业板块</th>
+                        <th rowspan="2" class="sortable" data-sort="涨跌幅">涨跌幅(%)</th>
+                        <th colspan="2">主力净流入</th>
+                        <th colspan="2">超大单净流入</th>
+                        <th colspan="2">大单净流入</th>
+                        <th colspan="2">中单净流入</th>
+                        <th colspan="2">小单净流入</th>
+                        <th rowspan="2">概念资金流</th>
+                        <th rowspan="2">主力净流入最大股</th>
+                    </tr>
+                    <tr>
+                        <th class="sortable" data-sort="主力净流入">净额</th>
+                        <th class="sortable" data-sort="主力净流入占比">净占比</th>
+                        <th class="sortable" data-sort="超大单净流入">净额</th>
+                        <th class="sortable" data-sort="超大单净流入占比">净占比</th>
+                        <th class="sortable" data-sort="大单净流入">净额</th>
+                        <th class="sortable" data-sort="大单净流入占比">净占比</th>
+                        <th class="sortable" data-sort="中单净流入">净额</th>
+                        <th class="sortable" data-sort="中单净流入占比">净占比</th>
+                        <th class="sortable" data-sort="小单净流入">净额</th>
+                        <th class="sortable" data-sort="小单净流入占比">净占比</th>
+                    </tr>
+                </thead>
+                <tbody id="10day-data">
+                    <tr class="loading">
+                        <td colspan="15">
+                            <div class="loading-spinner"></div>
+                            <p>加载中...</p>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // 初始化数据
+        let globalData = {{ data|tojson|safe }};
+        let currentSortColumn = '主力净流入';
+        let currentSortDirection = 'desc';
+        let searchTerm = '';
+        let autoRefreshTimer = null;
+        
+        // 格式化数字
+        function formatNumber(num) {
+            if (num === null || num === undefined) return '-';
+            return num.toFixed(2);
+        }
+        
+        // 格式化百分比
+        function formatPercent(num) {
+            if (num === null || num === undefined) return '-';
+            return num.toFixed(2) + '%';
+        }
+        
+        // 根据数值设置颜色
+        function getColorClass(value) {
+            if (value > 0) return 'positive';
+            if (value < 0) return 'negative';
+            return '';
+        }
+        
+        // 排序数据
+        function sortData(data, column, direction) {
+            return [...data].sort((a, b) => {
+                let valueA = a[column];
+                let valueB = b[column];
+                
+                // 处理null或undefined值
+                if (valueA === null || valueA === undefined) valueA = direction === 'asc' ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY;
+                if (valueB === null || valueB === undefined) valueB = direction === 'asc' ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY;
+                
+                if (direction === 'asc') {
+                    return valueA - valueB;
+                } else {
+                    return valueB - valueA;
+                }
+            });
+        }
+        
+        // 过滤数据
+        function filterData(data, term) {
+            if (!term) return data;
+            term = term.toLowerCase();
+            return data.filter(item => {
+                return item['行业板块'].toLowerCase().includes(term);
+            });
+        }
+        
+        // 填充表格数据
+        function fillTable(period) {
+            const tableBody = document.getElementById(`${period}-data`);
+            tableBody.innerHTML = '';
+            
+            if (globalData && globalData[period] && globalData[period].status === 'success') {
+                let data = globalData[period].data;
+                
+                // 过滤数据
+                data = filterData(data, searchTerm);
+                
+                // 排序数据
+                data = sortData(data, currentSortColumn, currentSortDirection);
+                
+                if (data.length === 0) {
+                    const row = document.createElement('tr');
+                    const cell = document.createElement('td');
+                    cell.colSpan = 15;
+                    cell.textContent = '没有匹配的数据';
+                    cell.className = 'no-data';
+                    row.appendChild(cell);
+                    tableBody.appendChild(row);
+                    return;
+                }
+                
+                data.forEach((item, index) => {
+                    const row = document.createElement('tr');
+                    
+                    // 序号 - 使用排序后的索引
+                    const indexCell = document.createElement('td');
+                    indexCell.textContent = index + 1;
+                    row.appendChild(indexCell);
+                    
+                    // 行业板块
+                    const sectorCell = document.createElement('td');
+                    sectorCell.textContent = item['行业板块'];
+                    row.appendChild(sectorCell);
+                    
+                    // 涨跌幅
+                    const changeCell = document.createElement('td');
+                    changeCell.textContent = formatPercent(item['涨跌幅']);
+                    changeCell.className = getColorClass(item['涨跌幅']);
+                    row.appendChild(changeCell);
+                    
+                    // 主力净流入
+                    const mainInflowCell = document.createElement('td');
+                    mainInflowCell.textContent = formatNumber(item['主力净流入']);
+                    mainInflowCell.className = getColorClass(item['主力净流入']);
+                    row.appendChild(mainInflowCell);
+                    
+                    // 主力净流入占比
+                    const mainInflowPctCell = document.createElement('td');
+                    mainInflowPctCell.textContent = formatPercent(item['主力净流入占比']);
+                    mainInflowPctCell.className = getColorClass(item['主力净流入占比']);
+                    row.appendChild(mainInflowPctCell);
+                    
+                    // 超大单净流入
+                    const superLargeCell = document.createElement('td');
+                    superLargeCell.textContent = formatNumber(item['超大单净流入']);
+                    superLargeCell.className = getColorClass(item['超大单净流入']);
+                    row.appendChild(superLargeCell);
+                    
+                    // 超大单净流入占比
+                    const superLargePctCell = document.createElement('td');
+                    superLargePctCell.textContent = formatPercent(item['超大单净流入占比']);
+                    superLargePctCell.className = getColorClass(item['超大单净流入占比']);
+                    row.appendChild(superLargePctCell);
+                    
+                    // 大单净流入
+                    const largeCell = document.createElement('td');
+                    largeCell.textContent = formatNumber(item['大单净流入']);
+                    largeCell.className = getColorClass(item['大单净流入']);
+                    row.appendChild(largeCell);
+                    
+                    // 大单净流入占比
+                    const largePctCell = document.createElement('td');
+                    largePctCell.textContent = formatPercent(item['大单净流入占比']);
+                    largePctCell.className = getColorClass(item['大单净流入占比']);
+                    row.appendChild(largePctCell);
+                    
+                    // 中单净流入
+                    const mediumCell = document.createElement('td');
+                    mediumCell.textContent = formatNumber(item['中单净流入']);
+                    mediumCell.className = getColorClass(item['中单净流入']);
+                    row.appendChild(mediumCell);
+                    
+                    // 中单净流入占比
+                    const mediumPctCell = document.createElement('td');
+                    mediumPctCell.textContent = formatPercent(item['中单净流入占比']);
+                    mediumPctCell.className = getColorClass(item['中单净流入占比']);
+                    row.appendChild(mediumPctCell);
+                    
+                    // 小单净流入
+                    const smallCell = document.createElement('td');
+                    smallCell.textContent = formatNumber(item['小单净流入']);
+                    smallCell.className = getColorClass(item['小单净流入']);
+                    row.appendChild(smallCell);
+                    
+                    // 小单净流入占比
+                    const smallPctCell = document.createElement('td');
+                    smallPctCell.textContent = formatPercent(item['小单净流入占比']);
+                    smallPctCell.className = getColorClass(item['小单净流入占比']);
+                    row.appendChild(smallPctCell);
+                    
+                    // 概念资金流
+                    const conceptCell = document.createElement('td');
+                    if (item['概念资金流']) {
+                        conceptCell.textContent = formatNumber(item['概念资金流']);
+                        conceptCell.className = getColorClass(item['概念资金流']);
+                    } else {
+                        conceptCell.textContent = '-';
+                    }
+                    row.appendChild(conceptCell);
+                    
+                    // 主力净流入最大股
+                    const topStockCell = document.createElement('td');
+                    if (item['主力净流入最大股']) {
+                        topStockCell.textContent = item['主力净流入最大股'];
+                    } else {
+                        topStockCell.textContent = '-';
+                    }
+                    row.appendChild(topStockCell);
+                    
+                    tableBody.appendChild(row);
+                });
+            } else {
+                const row = document.createElement('tr');
+                const cell = document.createElement('td');
+                cell.colSpan = 15;
+                cell.textContent = '暂无数据或加载失败';
+                cell.className = 'no-data';
+                row.appendChild(cell);
+                tableBody.appendChild(row);
+            }
+            
+            // 更新排序图标
+            updateSortIcons(period);
+        }
+        
+        // 更新排序图标
+        function updateSortIcons(period) {
+            const headers = document.querySelectorAll(`#${period}-content .sortable`);
+            headers.forEach(header => {
+                header.classList.remove('asc', 'desc');
+                if (header.dataset.sort === currentSortColumn) {
+                    header.classList.add(currentSortDirection);
+                }
+            });
+        }
+        
+        // 切换标签页
+        function switchTab(tabId) {
+            // 移除所有标签页和内容的active类
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // 为选中的标签页和内容添加active类
+            document.querySelector(`.tab[data-tab="${tabId}"]`).classList.add('active');
+            document.getElementById(`${tabId}-content`).classList.add('active');
+        }
+        
+        // 刷新数据
+        function refreshData() {
+            const refreshBtn = document.getElementById('refresh-btn');
+            refreshBtn.disabled = true;
+            refreshBtn.textContent = '刷新中...';
+            
+            // 显示加载动画
+            document.querySelectorAll('.tab-content tbody').forEach(tbody => {
+                tbody.innerHTML = `
+                    <tr class="loading">
+                        <td colspan="15">
+                            <div class="loading-spinner"></div>
+                            <p>加载中...</p>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            fetch('/refresh')
+                .then(response => response.json())
+                .then(data => {
+                    return fetch('/api/data');
+                })
+                .then(response => response.json())
+                .then(data => {
+                    globalData = data;
+                    fillTable('today');
+                    fillTable('5day');
+                    fillTable('10day');
+                    updateLastUpdateTime();
+                    
+                    refreshBtn.disabled = false;
+                    refreshBtn.textContent = '刷新数据';
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    refreshBtn.disabled = false;
+                    refreshBtn.textContent = '刷新失败，重试';
+                    
+                    // 显示错误信息
+                    document.querySelectorAll('.tab-content tbody').forEach(tbody => {
+                        tbody.innerHTML = `
+                            <tr class="no-data">
+                                <td colspan="15">刷新数据失败，请重试</td>
+                            </tr>
+                        `;
+                    });
+                });
+        }
+        
+        // 更新最后更新时间
+        function updateLastUpdateTime() {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString();
+            document.getElementById('last-update').textContent = `最后更新: ${timeStr}`;
+        }
+        
+        // 设置自动刷新
+        function setAutoRefresh() {
+            // 清除现有的定时器
+            if (autoRefreshTimer) {
+                clearInterval(autoRefreshTimer);
+                autoRefreshTimer = null;
+            }
+            
+            // 获取选择的刷新间隔（秒）
+            const interval = parseInt(document.getElementById('auto-refresh-interval').value);
+            
+            // 如果间隔大于0，则设置新的定时器
+            if (interval > 0) {
+                autoRefreshTimer = setInterval(refreshData, interval * 1000);
+            }
+        }
+        
+        // 页面加载完成后执行
+        document.addEventListener('DOMContentLoaded', function() {
+            // 初始化表格数据
+            fillTable('today');
+            fillTable('5day');
+            fillTable('10day');
+            updateLastUpdateTime();
+            
+            // 标签页切换事件
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.addEventListener('click', function() {
+                    const tabId = this.getAttribute('data-tab');
+                    switchTab(tabId);
+                });
+            });
+            
+            // 刷新按钮事件
+            document.getElementById('refresh-btn').addEventListener('click', refreshData);
+            
+            // 搜索框输入事件
+            document.getElementById('search-input').addEventListener('input', function() {
+                searchTerm = this.value.trim();
+                const activeTabId = document.querySelector('.tab.active').dataset.tab;
+                fillTable(activeTabId);
+            });
+            
+            // 自动刷新选择事件
+            document.getElementById('auto-refresh-interval').addEventListener('change', setAutoRefresh);
+            
+            // 排序点击事件
+            document.querySelectorAll('.sortable').forEach(header => {
+                header.addEventListener('click', function() {
+                    const column = this.dataset.sort;
+                    
+                    // 如果点击的是当前排序列，则切换排序方向
+                    if (column === currentSortColumn) {
+                        currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        currentSortColumn = column;
+                        currentSortDirection = 'desc'; // 默认降序
+                    }
+                    
+                    // 获取当前活动的标签页
+                    const activeTabId = document.querySelector('.tab.active').dataset.tab;
+                    fillTable(activeTabId);
+                });
+            });
+            
+            // 导出Excel按钮事件
+            document.getElementById('export-excel').addEventListener('click', function() {
+                exportTableToExcel();
+            });
+            
+            // 导出CSV按钮事件
+            document.getElementById('export-csv').addEventListener('click', function() {
+                exportTableToCSV();
+            });
+        });
+        
+        // 导出表格到Excel
+        function exportTableToExcel() {
+            const activeTabId = document.querySelector('.tab.active').dataset.tab;
+            const tableId = `${activeTabId}-content`;
+            const table = document.getElementById(tableId);
+            
+            // 创建一个工作簿
+            const wb = XLSX.utils.book_new();
+            
+            // 获取表格数据
+            const ws = XLSX.utils.table_to_sheet(table.querySelector('table'));
+            
+            // 将工作表添加到工作簿
+            XLSX.utils.book_append_sheet(wb, ws, '资金流向');
+            
+            // 生成Excel文件并下载
+            XLSX.writeFile(wb, `行业板块资金流向_${activeTabId}_${new Date().toLocaleDateString().replace(/\//g, '-')}.xlsx`);
+        }
+        
+        // 导出表格到CSV
+        function exportTableToCSV() {
+            const activeTabId = document.querySelector('.tab.active').dataset.tab;
+            const tableId = `${activeTabId}-content`;
+            const table = document.getElementById(tableId);
+            
+            // 获取表格数据
+            const ws = XLSX.utils.table_to_sheet(table.querySelector('table'));
+            
+            // 转换为CSV
+            const csv = XLSX.utils.sheet_to_csv(ws);
+            
+            // 创建下载链接
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            
+            link.href = url;
+            link.setAttribute('download', `行业板块资金流向_${activeTabId}_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`);
+            link.style.visibility = 'hidden';
+            
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
+</body>
+</html> 
